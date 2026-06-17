@@ -7,11 +7,11 @@ GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-# По умолчанию
+# Defaults
 TEST_PATH=""
 SIZE_MB=1024
 
-# Парсинг аргументов
+# Argument parsing
 while [[ $# -gt 0 ]]; do
   case $1 in
     -p|--path)
@@ -21,14 +21,14 @@ while [[ $# -gt 0 ]]; do
     -s|--size)
       SIZE_MB="$2"
       if ! [[ "$SIZE_MB" =~ ^[0-9]+$ ]] || (( SIZE_MB <= 0 )); then
-        echo -e "${RED}❌ Размер должен быть положительным целым числом (в МБ).${NC}"
+        echo -e "${RED}❌ Size must be a positive integer (in MB).${NC}"
         exit 1
       fi
       shift 2
       ;;
     *)
-      echo -e "${RED}❌ Неизвестный аргумент: $1${NC}"
-      echo "Использование: $0 [--path ПУТЬ] [--size РАЗМЕР_МБ]"
+      echo -e "${RED}❌ Unknown argument: $1${NC}"
+      echo "Usage: $0 [--path PATH] [--size SIZE_MB]"
       exit 1
       ;;
   esac
@@ -36,21 +36,21 @@ done
 
 cleanup() {
   if [[ -n ${TEST_FILE:-} && -f "$TEST_FILE" ]]; then
-    echo -e "${BLUE}🧹 Удаление временного файла...${NC}"
+    echo -e "${BLUE}🧹 Removing temporary file...${NC}"
     rm -f "$TEST_FILE"
   fi
 }
 
 trap cleanup EXIT INT TERM
 
-# Если путь не задан — выбираем через Finder
+# If no path is provided, choose one through Finder
 if [[ -z "$TEST_PATH" ]]; then
-  echo -e "${BLUE}🖥️  Открывается окно выбора папки...${NC}"
+  echo -e "${BLUE}🖥️  Opening folder picker...${NC}"
   TEST_PATH=$(
     osascript -e '
       try
         tell application "Finder"
-          set folderPath to choose folder with prompt "Выберите том или папку для теста скорости диска:"
+          set folderPath to choose folder with prompt "Choose a volume or folder for the disk speed test:"
         end tell
         POSIX path of folderPath
       on error
@@ -59,47 +59,47 @@ if [[ -z "$TEST_PATH" ]]; then
     ' 2>/dev/null
   )
   if [[ -z "$TEST_PATH" ]]; then
-    echo -e "${RED}❌ Выбор отменён.${NC}"
+    echo -e "${RED}❌ Selection canceled.${NC}"
     exit 1
   fi
 fi
 
-# Нормализуем путь
+# Normalize path
 TEST_PATH="${TEST_PATH%/}"
 if [[ ! -d "$TEST_PATH" ]]; then
-  echo -e "${RED}❌ Путь не существует: $TEST_PATH${NC}"
+  echo -e "${RED}❌ Path does not exist: $TEST_PATH${NC}"
   exit 1
 fi
 
-# Проверка свободного места
+# Check free space
 FREE_BLOCKS=$(df "$TEST_PATH" | awk 'NR==2 {print $4}')
 FREE_MB=$((FREE_BLOCKS * 512 / 1024 / 1024))
-REQUIRED_MB=$((SIZE_MB + SIZE_MB / 10))  # +10% запас
+REQUIRED_MB=$((SIZE_MB + SIZE_MB / 10))  # +10% buffer
 
 if (( FREE_MB < REQUIRED_MB )); then
-  echo -e "${RED}❌ Недостаточно места на диске.${NC}"
-  echo "Требуется: ~${REQUIRED_MB} МБ, доступно: ${FREE_MB} МБ."
+  echo -e "${RED}❌ Not enough disk space.${NC}"
+  echo "Required: ~${REQUIRED_MB} MB, available: ${FREE_MB} MB."
   exit 1
 fi
 
 TEST_FILE="$TEST_PATH/.io_test_temp.bin"
 
-echo -e "${GREEN}📁 Путь: $TEST_PATH${NC}"
-echo -e "${BLUE}📊 Размер: ${SIZE_MB} МБ${NC}"
+echo -e "${GREEN}📁 Path: $TEST_PATH${NC}"
+echo -e "${BLUE}📊 Size: ${SIZE_MB} MB${NC}"
 
-# --- Запись ---
-echo -e "${BLUE}✍️  Запись ${SIZE_MB} МБ...${NC}"
+# --- Write ---
+echo -e "${BLUE}✍️  Writing ${SIZE_MB} MB...${NC}"
 start_write=$(date +%s)
 dd if=/dev/urandom of="$TEST_FILE" bs=1M count="$SIZE_MB" 2>/dev/null
 end_write=$(date +%s)
 
-# --- Чтение ---
-echo -e "${BLUE}📖 Чтение ${SIZE_MB} МБ...${NC}"
+# --- Read ---
+echo -e "${BLUE}📖 Reading ${SIZE_MB} MB...${NC}"
 start_read=$(date +%s)
 dd if="$TEST_FILE" of=/dev/null bs=1M 2>/dev/null
 end_read=$(date +%s)
 
-# --- Расчёт ---
+# --- Calculation ---
 write_time=$((end_write - start_write))
 read_time=$((end_read - start_read))
 
@@ -109,8 +109,8 @@ read_time=$((end_read - start_read))
 write_speed=$(awk "BEGIN {printf \"%.2f\", $SIZE_MB / $write_time}")
 read_speed=$(awk "BEGIN {printf \"%.2f\", $SIZE_MB / $read_time}")
 
-# --- Вывод ---
+# --- Output ---
 echo
-echo -e "${GREEN}✅ Тест завершён!${NC}"
-echo "  💾 Запись: ${write_speed} МБ/с"
-echo "  📥 Чтение: ${read_speed} МБ/с"
+echo -e "${GREEN}✅ Test complete!${NC}"
+echo "  💾 Write: ${write_speed} MB/s"
+echo "  📥 Read: ${read_speed} MB/s"
