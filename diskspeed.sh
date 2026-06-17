@@ -10,6 +10,7 @@ NC='\033[0m'
 # Defaults
 TEST_PATH=""
 SIZE_MB=1024
+VERIFY=false
 
 # Argument parsing
 while [[ $# -gt 0 ]]; do
@@ -26,9 +27,13 @@ while [[ $# -gt 0 ]]; do
       fi
       shift 2
       ;;
+    -v|--verify)
+      VERIFY=true
+      shift
+      ;;
     *)
       echo -e "${RED}❌ Unknown argument: $1${NC}"
-      echo "Usage: $0 [--path PATH] [--size SIZE_MB]"
+      echo "Usage: $0 [--path PATH] [--size SIZE_MB] [--verify]"
       exit 1
       ;;
   esac
@@ -82,22 +87,46 @@ if (( FREE_MB < REQUIRED_MB )); then
   exit 1
 fi
 
-TEST_FILE="$TEST_PATH/.io_test_temp.bin"
+TEST_FILE="$TEST_PATH/.io_test_temp_$$.bin"
 
 echo -e "${GREEN}📁 Path: $TEST_PATH${NC}"
 echo -e "${BLUE}📊 Size: ${SIZE_MB} MB${NC}"
+if [[ "$VERIFY" == true ]]; then
+  echo -e "${BLUE}🔎 Verification: enabled${NC}"
+fi
 
 # --- Write ---
-echo -e "${BLUE}✍️  Writing ${SIZE_MB} MB...${NC}"
+if [[ "$VERIFY" == true ]]; then
+  echo -e "${BLUE}✍️  Writing and checksumming ${SIZE_MB} MB...${NC}"
+else
+  echo -e "${BLUE}✍️  Writing ${SIZE_MB} MB...${NC}"
+fi
 start_write=$(date +%s)
-dd if=/dev/urandom of="$TEST_FILE" bs=1M count="$SIZE_MB" 2>/dev/null
+if [[ "$VERIFY" == true ]]; then
+  expected_hash=$(dd if=/dev/urandom bs=1M count="$SIZE_MB" 2>/dev/null | tee "$TEST_FILE" | shasum -a 256 | awk '{print $1}')
+else
+  dd if=/dev/urandom of="$TEST_FILE" bs=1M count="$SIZE_MB" 2>/dev/null
+fi
 end_write=$(date +%s)
 
 # --- Read ---
-echo -e "${BLUE}📖 Reading ${SIZE_MB} MB...${NC}"
+if [[ "$VERIFY" == true ]]; then
+  echo -e "${BLUE}📖 Reading and verifying ${SIZE_MB} MB...${NC}"
+else
+  echo -e "${BLUE}📖 Reading ${SIZE_MB} MB...${NC}"
+fi
 start_read=$(date +%s)
-dd if="$TEST_FILE" of=/dev/null bs=1M 2>/dev/null
+if [[ "$VERIFY" == true ]]; then
+  actual_hash=$(shasum -a 256 "$TEST_FILE" | awk '{print $1}')
+else
+  dd if="$TEST_FILE" of=/dev/null bs=1M 2>/dev/null
+fi
 end_read=$(date +%s)
+
+if [[ "$VERIFY" == true && "$expected_hash" != "$actual_hash" ]]; then
+  echo -e "${RED}❌ Verification failed: read data does not match written data.${NC}"
+  exit 1
+fi
 
 # --- Calculation ---
 write_time=$((end_write - start_write))
@@ -114,3 +143,6 @@ echo
 echo -e "${GREEN}✅ Test complete!${NC}"
 echo "  💾 Write: ${write_speed} MB/s"
 echo "  📥 Read: ${read_speed} MB/s"
+if [[ "$VERIFY" == true ]]; then
+  echo "  🔎 Verification: passed"
+fi

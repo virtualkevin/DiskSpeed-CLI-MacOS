@@ -15,6 +15,7 @@ Perfect for developers, sysadmins, or curious users who want real-world disk spe
 - 🖥️ **Interactive GUI mode**: pick a volume using the native Finder dialog
 - ⌨️ **CLI mode**: specify `--path` and `--size` for scripting and automation
 - 🧼 **Zero footprint**: temporary test file is **auto-deleted**, even on crash
+- 🔎 **Optional verification**: use `--verify` to checksum the data read back from disk
 - 🔒 **No sudo, no install**: runs safely in user space
 - 📊 **Clear results**: shows write & read speeds in **MB/s**
 - 💻 Works on **Intel and Apple Silicon** (M1/M2/M3/M4)
@@ -26,7 +27,7 @@ Perfect for developers, sysadmins, or curious users who want real-world disk spe
 Make it executable:
 
 ```bash
-chmod +x diskspeed
+chmod +x diskspeed.sh
 ```
 and run.
 
@@ -35,11 +36,19 @@ If run without arguments, the script will open a Finder dialog to select a disk,
 With arguments, usage is as follows:
 
 ```bash
-./diskspeed --p "/Volumes/My SSD" --s 512
+./diskspeed.sh -p "/Volumes/My SSD" -s 512
 ```
 or
 ```bash
-./diskspeed --path /Volumes/MySSD --size 512
+./diskspeed.sh --path /Volumes/MySSD --size 512
 ```
 
 File size is specified in **megabytes (MB)**.
+
+To verify that the data read back matches the data written, add `--verify`:
+
+```bash
+./diskspeed.sh --path /Volumes/MySSD --size 512 --verify
+```
+
+Verification uses SHA-256 checksums, so the reported write and read speeds include checksum overhead.
